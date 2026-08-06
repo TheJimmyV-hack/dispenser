@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dispenser Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0F1E24;
+    --ink-2:#4A5D65;
+    --ground:#E4EAEC;
+    --panel:#FFFFFF;
+    --rule:#C6D2D7;
+    --live:#0E7C86;
+    --signal:#C9761F;
+    --alert:#A4302B;
+    --ok:#2F7A52;
+
+    --display:"Archivo","Helvetica Neue",Arial,sans-serif;
+    --mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+
+    --r:4px;
+    --pad:16px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:var(--ground);
+    color:var(--ink);
+    font-family:var(--display);
+    font-size:15px;
+    line-height:1.45;
+    -webkit-font-smoothing:antialiased;
+    padding:0 0 48px;
+  }
+  h1,h2,h3{margin:0;font-weight:600;letter-spacing:-0.01em}
+
+  .eyebrow{
+    font-family:var(--mono);
+    font-size:11px;
+    font-weight:500;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:var(--ink-2);
+  }
+
+  /* ---------- top bar ---------- */
+  .bar{
+    position:sticky;top:0;z-index:20;
+    background:var(--ink);
+    color:#fff;
+    padding:10px var(--pad);
+    display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  }
+  .bar h1{font-size:15px;font-weight:700;letter-spacing:0.02em;flex:0 0 auto}
+  .bar .eyebrow{color:#8FA6AE}
+  .link{margin-left:auto;display:flex;gap:8px;align-items:center;font-family:var(--mono);font-size:12px}
+  .dot{width:9px;height:9px;border-radius:50%;background:#5C6E76;flex:0 0 auto}
+  .dot.on{background:#3FC38A;box-shadow:0 0 0 3px rgba(63,195,138,.22)}
+  .dot.busy{background:var(--signal)}
+
+  /* ---------- layout ---------- */
+  .wrap{max-width:1080px;margin:0 auto;padding:var(--pad);display:grid;gap:14px}
+  @media(min-width:900px){
+    .wrap{grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start}
+    .span{grid-column:1/-1}
+  }
+
+  .card{
+    background:var(--panel);
+    border:1px solid var(--rule);
+    border-radius:var(--r);
+    padding:var(--pad);
+  }
+  .card > header{display:flex;align-items:baseline;gap:10px;margin-bottom:12px}
+  .card > header h2{font-size:14px}
+  .card > header .note{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--ink-2)}
+
+  /* ---------- buttons ---------- */
+  button{
+    font:inherit;font-weight:600;font-size:13px;
+    border:1px solid var(--ink);
+    background:var(--ink);color:#fff;
+    padding:9px 14px;border-radius:var(--r);
+    cursor:pointer;
+  }
+  button.ghost{background:transparent;color:var(--ink)}
+  button.ghost:hover:not(:disabled){background:var(--ink);color:#fff}
+  button:disabled{opacity:.35;cursor:not-allowed}
+  button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--live);outline-offset:2px}
+  .row{display:flex;gap:8px;flex-wrap:wrap}
+
+  /* ---------- the ring ---------- */
+  .ring-wrap{display:flex;flex-direction:column;align-items:center;gap:10px}
+  svg.ring{width:100%;max-width:340px;height:auto;touch-action:manipulation}
+  .seg{cursor:pointer;transition:opacity .12s ease}
+  @media(prefers-reduced-motion:reduce){.seg{transition:none}}
+  .seg:hover{opacity:.82}
+  .seg-num{font-family:var(--mono);font-size:13px;font-weight:500;pointer-events:none}
+  .ring-centre{font-family:var(--mono);font-size:11px;fill:var(--ink-2);text-anchor:middle}
+  .ring-centre.big{font-family:var(--display);font-size:20px;font-weight:700;fill:var(--ink)}
+
+  .legend{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;font-family:var(--mono);font-size:11px;color:var(--ink-2)}
+  .legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:baseline}
+
+  /* ---------- compartment editor ---------- */
+  .editor{border-top:1px solid var(--rule);margin-top:14px;padding-top:14px;display:none}
+  .editor.open{display:block}
+  label{display:block;font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2);margin:0 0 4px}
+  input[type=text],input[type=datetime-local],select{
+    width:100%;font:inherit;font-size:14px;
+    padding:8px 10px;border:1px solid var(--rule);border-radius:var(--r);
+    background:#fff;color:var(--ink);
+  }
+  .field{margin-bottom:10px}
+
+  /* ---------- status grid ---------- */
+  .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;background:var(--rule);border:1px solid var(--rule);border-radius:var(--r);overflow:hidden}
+  .cell{background:var(--panel);padding:10px 12px}
+  .cell .k{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2)}
+  .cell .v{font-family:var(--mono);font-size:16px;font-weight:500;margin-top:2px;word-break:break-word}
+  .v.warn{color:var(--signal)}
+  .v.bad{color:var(--alert)}
+  .v.good{color:var(--ok)}
+
+  /* ---------- tables ---------- */
+  table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12px}
+  th{text-align:left;font-weight:500;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2);padding:0 8px 6px 0;border-bottom:1px solid var(--rule)}
+  td{padding:6px 8px 6px 0;border-bottom:1px solid var(--ground)}
+  .empty{font-family:var(--mono);font-size:12px;color:var(--ink-2);padding:18px 0;text-align:center}
+
+  /* ---------- console ---------- */
+  .console{
+    font-family:var(--mono);font-size:11.5px;line-height:1.6;
+    background:var(--ink);color:#C7D6DB;
+    border-radius:var(--r);padding:10px 12px;
+    height:220px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;
+  }
+  .console .tx{color:#7FD8C6}
+  .console .rx{color:#EFD9A8}
+  .console .er{color:#F09A93}
+  .console .sy{color:#6C838C}
+
+  .foot{max-width:1080px;margin:0 auto;padding:0 var(--pad);font-family:var(--mono);font-size:11px;color:var(--ink-2)}
+  .banner{background:var(--alert);color:#fff;padding:12px var(--pad);font-size:13px;display:none}
+  .banner.show{display:block}
+  .banner code{font-family:var(--mono)}
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <h1>DISPENSER CONSOLE</h1>
+  <span class="eyebrow">bench + demo control</span>
+  <span class="link"><span class="dot" id="dot"></span><span id="connLabel">Not connected</span></span>
+</div>
+
+<div class="banner" id="unsupported">
+  This browser has no Web Bluetooth. Use Chrome or Edge on Android, Windows, macOS or Linux.
+  <strong>iOS and iPadOS cannot run this page</strong> — no browser on those platforms supports Web Bluetooth.
+</div>
+
+<div class="wrap">
+
+  <!-- CONNECTION -->
+  <section class="card span">
+    <header>
+      <span class="eyebrow">01</span>
+      <h2>Device</h2>
+      <span class="note" id="deviceName">—</span>
+    </header>
+    <div class="row">
+      <button id="btnConnect">Connect</button>
+      <button id="btnDisconnect" class="ghost" disabled>Disconnect</button>
+      <button id="btnStatus" class="ghost" disabled>Read status</button>
+      <button id="btnTime" class="ghost" disabled>Set clock</button>
+      <button id="btnRefill" class="ghost" disabled>Refill mode</button>
+    </div>
+    <div class="grid" style="margin-top:14px">
+      <div class="cell"><div class="k">State</div><div class="v" id="stState">—</div></div>
+      <div class="cell"><div class="k">Gate</div><div class="v" id="stGate">—</div></div>
+      <div class="cell"><div class="k">Battery</div><div class="v" id="stBatt">—</div></div>
+      <div class="cell"><div class="k">Device clock</div><div class="v" id="stDrift">—</div></div>
+      <div class="cell"><div class="k">Schedule on device</div><div class="v" id="stVer">—</div></div>
+      <div class="cell"><div class="k">Last sync</div><div class="v" id="stSync">never</div></div>
+    </div>
+  </section>
+
+  <!-- CAROUSEL -->
+  <section class="card">
+    <header>
+      <span class="eyebrow">02</span>
+      <h2>Carousel</h2>
+      <span class="note">tap a compartment</span>
+    </header>
+
+    <div class="ring-wrap">
+      <svg class="ring" id="ring" viewBox="0 0 320 320" role="img" aria-label="Eight dose compartments">
+        <g id="segs"></g>
+        <text class="ring-centre big" id="ringTitle" x="160" y="152">8 doses</text>
+        <text class="ring-centre" id="ringSub" x="160" y="174">none scheduled</text>
+      </svg>
+      <div class="legend">
+        <span><i style="background:#E4EAEC;border:1px solid var(--rule)"></i>empty</span>
+        <span><i style="background:var(--ink)"></i>scheduled</span>
+        <span><i style="background:var(--signal)"></i>presented</span>
+        <span><i style="background:var(--ok)"></i>taken</span>
+        <span><i style="background:var(--alert)"></i>missed</span>
+      </div>
+    </div>
+
+    <div class="editor" id="editor">
+      <div class="eyebrow" style="margin-bottom:10px">Compartment <span id="edNum"></span></div>
+      <div class="field">
+        <label for="edName">Medication</label>
+        <input type="text" id="edName" placeholder="e.g. Metformin 500 mg" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="edWhen">Due at</label>
+        <input type="datetime-local" id="edWhen">
+      </div>
+      <div class="field">
+        <label for="edWin">Release window</label>
+        <select id="edWin">
+          <option value="900">15 minutes</option>
+          <option value="1800" selected>30 minutes</option>
+          <option value="3600">60 minutes</option>
+        </select>
+      </div>
+      <div class="row">
+        <button id="edSave">Save compartment</button>
+        <button id="edClear" class="ghost">Clear</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- SCHEDULE -->
+  <section class="card">
+    <header>
+      <span class="eyebrow">03</span>
+      <h2>Schedule</h2>
+      <span class="note" id="schCount">0 doses</span>
+    </header>
+    <table>
+      <thead><tr><th>#</th><th>Due</th><th>Medication</th></tr></thead>
+      <tbody id="schBody"></tbody>
+    </table>
+    <div class="empty" id="schEmpty">No compartments assigned yet. Tap a segment above.</div>
+    <div class="row" style="margin-top:14px">
+      <button id="btnPush" disabled>Push to device</button>
+      <button id="btnExport" class="ghost">Save file</button>
+      <button id="btnImport" class="ghost">Load file</button>
+      <input type="file" id="fileIn" accept=".json,application/json" hidden>
+    </div>
+  </section>
+
+  <!-- EVENTS -->
+  <section class="card span">
+    <header>
+      <span class="eyebrow">04</span>
+      <h2>Event log</h2>
+      <span class="note">from device memory</span>
+    </header>
+    <table>
+      <thead><tr><th>Time</th><th>Dose</th><th>Outcome</th></tr></thead>
+      <tbody id="logBody"></tbody>
+    </table>
+    <div class="empty" id="logEmpty">No events read yet.</div>
+    <div class="row" style="margin-top:14px">
+      <button id="btnLog" class="ghost" disabled>Read event log</button>
+      <button id="btnLogExport" class="ghost">Save log</button>
+    </div>
+  </section>
+
+  <!-- CONSOLE -->
+  <section class="card span">
+    <header>
+      <span class="eyebrow">05</span>
+      <h2>Traffic</h2>
+      <span class="note">every line in and out</span>
+    </header>
+    <div class="console" id="con" aria-live="polite"></div>
+    <div class="row" style="margin-top:12px">
+      <button id="btnClear" class="ghost">Clear</button>
+      <input type="text" id="raw" placeholder='{"c":"status"}' style="flex:1;min-width:180px">
+      <button id="btnRaw" class="ghost" disabled>Send raw</button>
+    </div>
+  </section>
+
+</div>
+
+<p class="foot">
+  Engineering proof of concept. Gate opening is not proof that medication was swallowed.
+  Test with dummy tablets only.
+</p>
+
+<script>
+(function(){
+"use strict";
+
+/* ============================================================
+   Protocol
+   ============================================================ */
+const NUS  = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
+const CHR_RX = "6e400002-b5a3-f393-e0a9-e50e24dcca9e"; // app -> device (write)
+const CHR_TX = "6e400003-b5a3-f393-e0a9-e50e24dcca9e"; // device -> app (notify)
+const NAME_PREFIX = "PILLBOX";
+const COMPARTMENTS = 8;
+
+/* ============================================================
+   State
+   ============================================================ */
+const S = {
+  device:null, server:null, rx:null, tx:null,
+  connected:false,
+  version: 1,
+  slots: new Array(COMPARTMENTS).fill(null), // {name, at (epoch s), win}
+  outcomes: {},                              // comp -> 'taken' | 'missed'
+  presented: null,                           // comp currently at outlet
+  events: [],
+  lastSync: null,
+  selected: null,
+  rxBuf: "",
+  pollTimer: null,
+  quietUntil: 0,
+  lastState: null
+};
+
+/* ============================================================
+   Small helpers
+   ============================================================ */
+const $ = id => document.getElementById(id);
+const enc = new TextEncoder();
+const dec = new TextDecoder();
+const pad = n => String(n).padStart(2,"0");
+
+function fmt(epoch){
+  if(!epoch) return "—";
+  const d = new Date(epoch*1000);
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+function fmtShort(epoch){
+  if(!epoch) return "—";
+  const d = new Date(epoch*1000);
+  return `${pad(d.getDate())}/${pad(d.getMonth()+1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+function toLocalInput(epoch){
+  const d = new Date(epoch*1000);
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+function nowEpoch(){ return Math.floor(Date.now()/1000); }
+
+/* UTC epoch plus this phone's offset from UTC, in seconds east.
+   The device uses tzoff for DISPLAY ONLY — all its logic stays on UTC. */
+function timeCmd(){
+  return { c:"time", epoch: nowEpoch(), tzoff: -new Date().getTimezoneOffset()*60 };
+}
+
+/* seconds -> "45s" / "12m" / "1h 30m" / "2d 3h" */
+function fmtSpan(sec){
+  sec = Math.round(Math.abs(sec));
+  if(sec < 60) return sec + "s";
+  const m = Math.floor(sec/60);
+  if(m < 60) return m + "m";
+  const h = Math.floor(m/60), rm = m % 60;
+  if(h < 24) return rm ? `${h}h ${rm}m` : `${h}h`;
+  const dd = Math.floor(h/24), rh = h % 24;
+  return rh ? `${dd}d ${rh}h` : `${dd}d`;
+}
+
+/* ============================================================
+   Console
+   ============================================================ */
+function log(text, cls){
+  const el = $("con");
+  const line = document.createElement("div");
+  line.className = cls || "sy";
+  const t = new Date();
+  line.textContent = `${pad(t.getHours())}:${pad(t.getMinutes())}:${pad(t.getSeconds())}  ${text}`;
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+  while(el.childNodes.length > 400) el.removeChild(el.firstChild);
+}
+
+/* ============================================================
+   Bluetooth
+   ============================================================ */
+function setConnected(on){
+  S.connected = on;
+  $("dot").className = "dot" + (on ? " on" : "");
+  $("connLabel").textContent = on ? "Connected" : "Not connected";
+  ["btnDisconnect","btnStatus","btnTime","btnRefill","btnPush","btnLog","btnRaw"]
+    .forEach(id => $(id).disabled = !on);
+  if(on){
+    if(S.pollTimer) clearInterval(S.pollTimer);
+    S.pollTimer = setInterval(() => {
+      if(!S.connected) return;
+      S.quietUntil = Date.now() + 1500;
+      send({c:"status"}, true);
+    }, 3000);
+  }else{
+    if(S.pollTimer){ clearInterval(S.pollTimer); S.pollTimer = null; }
+    $("deviceName").textContent = "—";
+    S.presented = null;
+    S.lastState = null;
+    drawRing();
+  }
+}
+
+async function connect(){
+  if(!navigator.bluetooth){ $("unsupported").classList.add("show"); return; }
+  try{
+    log("requesting device…","sy");
+    S.device = await navigator.bluetooth.requestDevice({
+      filters:[{namePrefix:NAME_PREFIX}],
+      optionalServices:[NUS]
+    });
+    S.device.addEventListener("gattserverdisconnected", onDrop);
+    $("deviceName").textContent = S.device.name || "unnamed";
+
+    S.server = await S.device.gatt.connect();
+    const svc = await S.server.getPrimaryService(NUS);
+    S.rx = await svc.getCharacteristic(CHR_RX);
+    S.tx = await svc.getCharacteristic(CHR_TX);
+    await S.tx.startNotifications();
+    S.tx.addEventListener("characteristicvaluechanged", onNotify);
+
+    setConnected(true);
+    log(`connected to ${S.device.name}`,"sy");
+    await send(timeCmd());
+    await send({c:"status"});
+  }catch(err){
+    log("connect failed: " + err.message,"er");
+  }
+}
+
+function onDrop(){
+  setConnected(false);
+  log("device disconnected","er");
+}
+
+async function disconnect(){
+  if(S.device && S.device.gatt.connected) S.device.gatt.disconnect();
+  setConnected(false);
+}
+
+/* line-buffered notify: the device may split or coalesce lines */
+function onNotify(ev){
+  S.rxBuf += dec.decode(ev.target.value);
+  let i;
+  while((i = S.rxBuf.indexOf("\n")) >= 0){
+    const line = S.rxBuf.slice(0,i).trim();
+    S.rxBuf = S.rxBuf.slice(i+1);
+    if(line) handleLine(line);
+  }
+  if(S.rxBuf.length > 4096) S.rxBuf = ""; // runaway guard
+}
+
+async function send(obj, quiet){
+  if(!S.rx){ if(!quiet) log("not connected","er"); return; }
+  const line = JSON.stringify(obj) + "\n";
+  if(!quiet) log("→ " + line.trim(),"tx");
+  const bytes = enc.encode(line);
+  if(bytes.length > 180) log(`warning: ${bytes.length} byte line, may exceed MTU`,"er");
+  try{
+    if(S.rx.writeValueWithoutResponse) await S.rx.writeValueWithoutResponse(bytes);
+    else await S.rx.writeValue(bytes);
+  }catch(err){
+    log("write failed: " + err.message,"er");
+  }
+  await new Promise(r => setTimeout(r,40)); // let the device drain
+}
+
+/* ============================================================
+   Incoming messages
+   ============================================================ */
+function handleLine(line){
+  let m;
+  try{ m = JSON.parse(line); }
+  catch(e){ log("← " + line,"rx"); log("unparseable line ignored","er"); return; }
+
+  // background polling and its replies stay out of the traffic log
+  const quiet = (m.r === "status" || m.r === "event") && Date.now() < S.quietUntil;
+  if(!quiet) log("← " + line,"rx");
+
+  switch(m.r){
+    case "status":  applyStatus(m); break;
+    case "event":   applyEvent(m);  break;
+    case "ok":
+      if(m.c === "commit"){
+        S.lastSync = nowEpoch();
+        $("stSync").textContent = fmtShort(S.lastSync);
+        log(`device accepted schedule v${m.v}`,"sy");
+        send({c:"status"});
+      }
+      break;
+    case "err":
+      log(`device error ${m.code || "?"}`,"er");
+      break;
+  }
+}
+
+function applyStatus(m){
+  $("stState").textContent = m.state || "—";
+  $("stVer").textContent   = m.v !== undefined ? "v" + m.v : "—";
+
+  const gate = $("stGate");
+  gate.textContent = m.gate || "—";
+  gate.className = "v" + (m.gate === "open" ? " warn" : "");
+
+  const batt = $("stBatt");
+  if(typeof m.batt === "number"){
+    batt.textContent = m.batt + "%";
+    batt.className = "v" + (m.batt < 20 ? " bad" : m.batt < 40 ? " warn" : "");
+  }
+
+  if(typeof m.epoch === "number"){
+    const skew = m.epoch - nowEpoch();
+    const el = $("stDrift");
+    const d = new Date(m.epoch*1000);
+    const clock = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    if(Math.abs(skew) <= 5){
+      el.textContent = clock + "  in sync";
+      el.className = "v good";
+    }else{
+      el.textContent = `${clock}  ${skew > 0 ? "+" : "-"}${fmtSpan(Math.abs(skew))}`;
+      // a large offset is expected while simulating time, so this is a note
+      el.className = "v warn";
+    }
+  }
+
+  S.presented = (m.state === "presented" && typeof m.comp === "number") ? m.comp : null;
+
+  // refresh the event log whenever the device changes state
+  if(m.state && m.state !== S.lastState){
+    S.lastState = m.state;
+    S.events = [];
+    drawLog();
+    S.quietUntil = Date.now() + 2000;
+    send({c:"log", since:0}, true);
+  }
+
+  drawRing();
+}
+
+function applyEvent(m){
+  const key = `${m.id}|${m.t}|${m.o}`;
+  if(S.events.some(e => `${e.id}|${e.t}|${e.o}` === key)) return;
+  S.events.push(m);
+  const comp = compForDoseId(m.id);
+  if(comp !== null){
+    if(m.o === "confirmed" || m.o === "gate_opened") S.outcomes[comp] = "taken";
+    if(m.o === "missed") S.outcomes[comp] = "missed";
+  }
+  drawLog();
+  drawRing();
+}
+
+function compForDoseId(id){
+  if(typeof id !== "string") return null;
+  const mm = id.match(/^c(\d+)-/);
+  return mm ? parseInt(mm[1],10) : null;
+}
+
+/* ============================================================
+   Carousel ring
+   ============================================================ */
+function polar(cx,cy,r,deg){
+  const a = (deg-90) * Math.PI/180;
+  return [cx + r*Math.cos(a), cy + r*Math.sin(a)];
+}
+function sector(cx,cy,ri,ro,a0,a1){
+  const [x0,y0] = polar(cx,cy,ro,a0), [x1,y1] = polar(cx,cy,ro,a1);
+  const [x2,y2] = polar(cx,cy,ri,a1), [x3,y3] = polar(cx,cy,ri,a0);
+  const large = (a1-a0) > 180 ? 1 : 0;
+  return `M${x0} ${y0}A${ro} ${ro} 0 ${large} 1 ${x1} ${y1}L${x2} ${y2}A${ri} ${ri} 0 ${large} 0 ${x3} ${y3}Z`;
+}
+
+function slotColour(i){
+  const n = i+1;
+  if(S.presented === n) return {fill:"var(--signal)", text:"#fff"};
+  if(S.outcomes[n] === "taken")  return {fill:"var(--ok)",     text:"#fff"};
+  if(S.outcomes[n] === "missed") return {fill:"var(--alert)",  text:"#fff"};
+  if(S.slots[i])                 return {fill:"var(--ink)",    text:"#fff"};
+  return {fill:"#E4EAEC", text:"var(--ink-2)"};
+}
+
+function drawRing(){
+  const g = $("segs");
+  g.innerHTML = "";
+  const cx=160, cy=160, ri=62, ro=142, step=360/COMPARTMENTS, gap=1.6;
+
+  for(let i=0;i<COMPARTMENTS;i++){
+    const a0 = i*step + gap, a1 = (i+1)*step - gap;
+    const c = slotColour(i);
+
+    const p = document.createElementNS("http://www.w3.org/2000/svg","path");
+    p.setAttribute("d", sector(cx,cy,ri,ro,a0,a1));
+    p.setAttribute("fill", c.fill);
+    p.setAttribute("stroke", "var(--rule)");
+    p.setAttribute("stroke-width", "1");
+    p.setAttribute("class","seg");
+    p.setAttribute("tabindex","0");
+    p.setAttribute("role","button");
+    p.setAttribute("aria-label", `Compartment ${i+1}`);
+    p.addEventListener("click", () => selectSlot(i));
+    p.addEventListener("keydown", e => { if(e.key==="Enter"||e.key===" "){ e.preventDefault(); selectSlot(i);} });
+    g.appendChild(p);
+
+    const [tx,ty] = polar(cx,cy,(ri+ro)/2, a0 + (a1-a0)/2);
+    const t = document.createElementNS("http://www.w3.org/2000/svg","text");
+    t.setAttribute("x",tx); t.setAttribute("y",ty+4);
+    t.setAttribute("text-anchor","middle");
+    t.setAttribute("fill", c.text);
+    t.setAttribute("class","seg-num");
+    t.textContent = i+1;
+    g.appendChild(t);
+  }
+
+  const filled = S.slots.filter(Boolean).length;
+  $("ringTitle").textContent = `${filled} / ${COMPARTMENTS}`;
+  $("ringSub").textContent = S.presented ? `compartment ${S.presented} at outlet` :
+                             filled ? "doses assigned" : "none scheduled";
+}
+
+/* ============================================================
+   Compartment editor
+   ============================================================ */
+function selectSlot(i){
+  S.selected = i;
+  const slot = S.slots[i];
+  $("edNum").textContent = i+1;
+  $("edName").value = slot ? slot.name : "";
+  $("edWhen").value = toLocalInput(slot ? slot.at : nowEpoch() + 3600);
+  $("edWin").value  = slot ? String(slot.win) : "1800";
+  $("editor").classList.add("open");
+  $("edName").focus();
+}
+
+function saveSlot(){
+  if(S.selected === null) return;
+  const name = $("edName").value.trim();
+  const when = $("edWhen").value;
+  if(!when){ log("set a due time first","er"); return; }
+  S.slots[S.selected] = {
+    name: name || `Compartment ${S.selected+1}`,
+    at:   Math.floor(new Date(when).getTime()/1000),
+    win:  parseInt($("edWin").value,10)
+  };
+  delete S.outcomes[S.selected+1];
+  $("editor").classList.remove("open");
+  S.selected = null;
+  drawRing(); drawSchedule();
+}
+
+function clearSlot(){
+  if(S.selected === null) return;
+  S.slots[S.selected] = null;
+  delete S.outcomes[S.selected+1];
+  $("editor").classList.remove("open");
+  S.selected = null;
+  drawRing(); drawSchedule();
+}
+
+/* ============================================================
+   Schedule table + push
+   ============================================================ */
+function drawSchedule(){
+  const body = $("schBody");
+  body.innerHTML = "";
+  const rows = S.slots
+    .map((s,i) => s ? {...s, comp:i+1} : null)
+    .filter(Boolean)
+    .sort((a,b) => a.at - b.at);
+
+  rows.forEach(r => {
+    const tr = document.createElement("tr");
+    const delta = r.at - nowEpoch();
+    const rel = delta >= 0 ? `in ${fmtSpan(delta)}` : `${fmtSpan(delta)} ago`;
+    tr.innerHTML = `<td>${r.comp}</td><td>${fmt(r.at)}<br><span style="color:var(--ink-2)">${rel}</span></td><td></td>`;
+    tr.lastChild.textContent = r.name;
+    body.appendChild(tr);
+  });
+
+  $("schEmpty").style.display = rows.length ? "none" : "block";
+  $("schCount").textContent = `${rows.length} dose${rows.length===1?"":"s"}`;
+}
+
+async function pushSchedule(){
+  const rows = S.slots.map((s,i) => s ? {...s, comp:i+1} : null).filter(Boolean);
+  if(!rows.length){ log("nothing to push","er"); return; }
+
+  S.version++;
+  const past = rows.filter(r => r.at < nowEpoch()).length;
+  if(past) log(`note: ${past} dose(s) are already in the past`,"er");
+
+  log(`pushing schedule v${S.version} — ${rows.length} events`,"sy");
+  await send(timeCmd());
+
+  for(let i=0;i<rows.length;i++){
+    const r = rows[i];
+    await send({
+      c:"sched", v:S.version, i:i, n:rows.length,
+      e:{ id:`c${r.comp}-${r.at}`, at:r.at, comp:r.comp, win:r.win }
+    });
+  }
+  await send({c:"commit", v:S.version, n:rows.length});
+}
+
+/* ============================================================
+   Event log
+   ============================================================ */
+function drawLog(){
+  const body = $("logBody");
+  body.innerHTML = "";
+  const rows = [...S.events].sort((a,b) => (b.t||0) - (a.t||0));
+  rows.forEach(e => {
+    const tr = document.createElement("tr");
+    const comp = compForDoseId(e.id);
+    tr.innerHTML = `<td>${fmt(e.t)}</td><td>${comp ? "compartment "+comp : (e.id||"—")}</td><td></td>`;
+    tr.lastChild.textContent = e.o || "—";
+    body.appendChild(tr);
+  });
+  $("logEmpty").style.display = rows.length ? "none" : "block";
+}
+
+function download(name, obj){
+  const blob = new Blob([JSON.stringify(obj,null,2)], {type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
+/* ============================================================
+   Wiring
+   ============================================================ */
+$("btnConnect").onclick    = connect;
+$("btnDisconnect").onclick = disconnect;
+$("btnStatus").onclick     = () => send({c:"status"});
+$("btnTime").onclick       = () => send(timeCmd());
+$("btnRefill").onclick     = () => send({c:"mode", m:"refill"});
+$("btnLog").onclick        = () => { S.events = []; drawLog(); send({c:"log", since:0}); };
+$("btnPush").onclick       = pushSchedule;
+$("btnClear").onclick      = () => { $("con").innerHTML = ""; };
+
+$("btnRaw").onclick = () => {
+  const v = $("raw").value.trim();
+  if(!v) return;
+  try{ send(JSON.parse(v)); $("raw").value = ""; }
+  catch(e){ log("that is not valid JSON","er"); }
+};
+$("raw").addEventListener("keydown", e => { if(e.key === "Enter") $("btnRaw").click(); });
+
+$("edSave").onclick  = saveSlot;
+$("edClear").onclick = clearSlot;
+
+$("btnExport").onclick = () => download("dispenser-schedule.json", {version:S.version, slots:S.slots});
+$("btnLogExport").onclick = () => download("dispenser-events.json", {exported:nowEpoch(), events:S.events});
+
+$("btnImport").onclick = () => $("fileIn").click();
+$("fileIn").onchange = ev => {
+  const f = ev.target.files[0];
+  if(!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try{
+      const d = JSON.parse(r.result);
+      if(Array.isArray(d.slots) && d.slots.length === COMPARTMENTS){
+        S.slots = d.slots;
+        S.version = d.version || S.version;
+        S.outcomes = {};
+        drawRing(); drawSchedule();
+        log("schedule loaded from file","sy");
+      } else log("file does not contain 8 compartments","er");
+    }catch(e){ log("could not read that file","er"); }
+  };
+  r.readAsText(f);
+  ev.target.value = "";
+};
+
+/* boot */
+if(!navigator.bluetooth) $("unsupported").classList.add("show");
+drawRing(); drawSchedule(); drawLog();
+log("ready — connect a dispenser to begin","sy");
+
+})();
+</script>
+</body>
+</html>
